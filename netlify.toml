@@ -1,0 +1,17 @@
+[build]
+  command = "pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Cache-control for the static assets Astro fingerprints.
+[[headers]]
+  for = "/_astro/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# No Content-Security-Policy is set on purpose: this is a self-contained static
+# tool with no third-party embeds, and a stray CSP only risks blocking things.
+# This netlify.toml is the single source of truth for headers; deploy via Git or
+# run `netlify deploy` from THIS folder so another project's headers can't leak in.
