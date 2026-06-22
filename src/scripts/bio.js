@@ -19,7 +19,7 @@ function initTheme() {
   btn.addEventListener('click', () => {
     const next = current() === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('lilbio-theme', next); } catch (e) {}
+    try { localStorage.setItem('lilbio-theme', next); } catch (e) { /* storage may be unavailable; safe to ignore */ }
     setThemeIcon(btn, next);
   });
 }
@@ -62,14 +62,14 @@ function loadStore() {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.profiles && Object.keys(parsed.profiles).length) store = parsed;
     }
-  } catch (e) {}
+  } catch (e) { /* storage may be unavailable; safe to ignore */ }
   if (!store.profiles[store.active]) store.active = Object.keys(store.profiles)[0];
 }
 let saveTimer = null;
 function saveStore() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* storage may be unavailable; safe to ignore */ }
   }, 250);
 }
 
