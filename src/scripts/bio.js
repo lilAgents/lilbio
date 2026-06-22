@@ -32,15 +32,25 @@ const STORE_KEY = 'lilbio-v1';
 // warn thresholds: the tightest platform that uses each field
 const WARN_AT = { tagline: 220, micro: 80, short: 500, long: 0 };
 
+// platform character limits, sorted tightest first so the chip row reads
+// left-to-right from "hardest to fit" to "roomiest"
 const PLATFORMS = [
-  { name: 'TikTok', limit: 80, slot: 'bio' },
-  { name: 'Instagram', limit: 150, slot: 'bio' },
-  { name: 'X / Twitter', limit: 160, slot: 'bio' },
-  { name: 'GitHub', limit: 160, slot: 'bio' },
-  { name: 'LinkedIn headline', limit: 220, slot: 'headline' },
-  { name: 'Bluesky', limit: 256, slot: 'bio' },
-  { name: 'Threads', limit: 500, slot: 'bio' },
-  { name: 'YouTube channel description', limit: 1000, slot: 'bio' },
+  { name: 'TikTok', limit: 80 },
+  { name: 'Instagram', limit: 150 },
+  { name: 'X', limit: 160 },
+  { name: 'GitHub', limit: 160 },
+  { name: 'LinkedIn headline', limit: 220 },
+  { name: 'Bluesky', limit: 256 },
+  { name: 'Threads', limit: 500 },
+  { name: 'YouTube', limit: 1000 },
+];
+
+// one card per length you actually write, longest first
+const LENGTHS = [
+  { key: 'tagline', label: 'Tagline' },
+  { key: 'micro', label: 'Micro bio' },
+  { key: 'short', label: 'Short bio' },
+  { key: 'long', label: 'Long bio' },
 ];
 
 let store = { active: 'Default', profiles: { Default: {} } };
@@ -65,22 +75,7 @@ function saveStore() {
 
 const data = () => store.profiles[store.active];
 
-/* ---------- fit logic ---------- */
-const FIELD_LABEL = { long: 'Long bio', short: 'Short bio', micro: 'Micro bio', tagline: 'Tagline' };
-
-function bestFit(platform) {
-  const d = data();
-  const order = platform.slot === 'headline' ? ['tagline', 'micro'] : ['long', 'short', 'micro', 'tagline'];
-  const written = order.filter((f) => (d[f] || '').trim());
-  for (const f of written) {
-    const text = d[f].trim();
-    if (text.length <= platform.limit) return { text, from: FIELD_LABEL[f] };
-  }
-  if (!written.length) return { empty: true };
-  const shortest = written.reduce((a, b) => (d[a].trim().length <= d[b].trim().length ? a : b));
-  return { over: d[shortest].trim().length, from: FIELD_LABEL[shortest] };
-}
-
+/* ---------- helpers ---------- */
 function pressKit() {
   const d = data();
   const lines = [];
@@ -93,33 +88,55 @@ function pressKit() {
 }
 
 /* ---------- render ---------- */
-function renderCards() {
-  const cards = PLATFORMS.map((p, i) => {
-    const fit = bestFit(p);
-    let body, meta;
-    if (fit.empty) {
-      body = '<p class="bio-body bio-body--empty">Write a bio on the left and the best fit lands here.</p>';
-      meta = `<span class="bio-from">0 / ${p.limit}</span>`;
-    } else if (fit.over) {
-      body = `<p class="bio-body bio-body--empty">Nothing fits yet: your shortest option (${esc(fit.from)}) is ${fit.over} characters, ${fit.over - p.limit} over this limit.</p>`;
-      meta = `<span class="bio-from bio-from--over">${fit.over} / ${p.limit}</span>`;
-    } else {
-      body = `<p class="bio-body">${esc(fit.text)}</p>`;
-      meta = `<span class="bio-from">${fit.text.length} / ${p.limit} &middot; from ${esc(fit.from)}</span>
-        <button class="btn btn--sm" data-copy="${i}" type="button">Copy</button>`;
-    }
+// chip row: every platform, green where this length fits, muted where it
+// is too long. One glance answers "where can I paste this version?"
+function fitChips(len) {
+  return PLATFORMS.map((p) => {
+    const fits = len <= p.limit;
+    return `<span class="bio-chip bio-chip--${fits ? 'fit' : 'over'}">${esc(p.name)}</span>`;
+  }).join('');
+}
+
+function fitSummary(len) {
+  const fit = PLATFORMS.filter((p) => len <= p.limit);
+  if (fit.length === PLATFORMS.length) return 'Fits every platform';
+  if (!fit.length) return 'Too long for every platform below';
+  const over = PLATFORMS.filter((p) => len > p.limit);
+  return `Fits ${fit.length} of ${PLATFORMS.length} &middot; too long for ${over.map((p) => esc(p.name)).join(', ')}`;
+}
+
+function lengthCard({ key, label }) {
+  const text = (data()[key] || '').trim();
+  const len = text.length;
+  if (!len) {
     return `<section class="insp-sec bio-card">
-      <h2 class="insp-sec__title">${esc(p.name)} <span class="bio-lim">${p.limit} max</span></h2>
-      ${body}
-      <div class="bio-meta">${meta}</div>
+      <div class="bio-card-head"><h2 class="insp-sec__title">${label}</h2></div>
+      <p class="bio-body bio-body--empty">Write your ${label.toLowerCase()} on the left and it shows up here, ready to copy.</p>
     </section>`;
-  });
+  }
+  return `<section class="insp-sec bio-card">
+    <div class="bio-card-head">
+      <h2 class="insp-sec__title">${label}</h2>
+      <button class="btn btn--sm" data-copy="${key}" type="button">Copy</button>
+    </div>
+    <p class="bio-body">${esc(text)}</p>
+    <div class="bio-chips">${fitChips(len)}</div>
+    <div class="bio-fit">${len} char${len === 1 ? '' : 's'} &middot; ${fitSummary(len)}</div>
+  </section>`;
+}
+
+function renderCards() {
+  const cards = LENGTHS.map(lengthCard);
 
   const kit = pressKit();
   cards.push(`<section class="insp-sec bio-card">
-    <h2 class="insp-sec__title">Press kit block <span class="bio-lim">name, handle, tagline, link, short bio</span></h2>
-    ${kit ? `<p class="bio-body">${esc(kit)}</p>` : '<p class="bio-body bio-body--empty">Fills in as you write: a tidy block to paste into press kits, podcast forms, and speaker pages.</p>'}
-    <div class="bio-meta">${kit ? '<span class="bio-from">ready to paste</span><button class="btn btn--sm" data-copy="kit" type="button">Copy</button>' : '<span class="bio-from"></span>'}</div>
+    <div class="bio-card-head">
+      <h2 class="insp-sec__title">Press kit block</h2>
+      ${kit ? '<button class="btn btn--sm" data-copy="kit" type="button">Copy</button>' : ''}
+    </div>
+    ${kit
+      ? `<p class="bio-body">${esc(kit)}</p><div class="bio-fit">Name, handle, tagline, link, and short bio, ready to paste into press kits and podcast forms.</div>`
+      : '<p class="bio-body bio-body--empty">Fills in as you write: a tidy block to paste into press kits, podcast forms, and speaker pages.</p>'}
   </section>`);
 
   $('#cards').innerHTML = cards.join('');
@@ -168,7 +185,7 @@ function initBio() {
     const btn = e.target.closest('[data-copy]');
     if (!btn) return;
     const which = btn.dataset.copy;
-    const text = which === 'kit' ? pressKit() : bestFit(PLATFORMS[Number(which)]).text;
+    const text = which === 'kit' ? pressKit() : (data()[which] || '').trim();
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
