@@ -1,4 +1,5 @@
 ---
+import ToolFooter from "../components/ToolFooter.astro";
 import '../styles/app.css';
 
 const title = 'lilBio - Brand Copy Locker';
@@ -124,9 +125,7 @@ const description =
       </section>
     </main>
 
-    <footer class="app-footer">
-      <span>Made with <span class="app-footer__heart" aria-hidden="true">&#9829;</span> by <a href="https://lilagents.com" target="_blank" rel="noopener">lilAgents</a> &middot; One bio, every platform, zero retyping.</span>
-    </footer>
+    <ToolFooter repoUrl="https://github.com/lilAgents/lilbio" />
 
     <script>
       import { initBio } from '../scripts/bio.js';
